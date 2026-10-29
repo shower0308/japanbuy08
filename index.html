@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本代購與購物清單 Japan Shopping Assistant</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter & Noto Sans TC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                    },
+                    colors: {
+                        jp: {
+                            red: '#E60012',
+                            rose: '#f43f5e',
+                            dark: '#0f172a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+        }
+    </style>
+</head>
+<body class="h-full text-slate-800 antialiased flex flex-col font-sans relative">
+
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm no-print">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <span class="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-red-50 text-jp-red font-bold text-xl border border-red-100 shadow-sm">
+                    🇯🇵
+                </span>
+                <div>
+                    <h1 class="font-black text-slate-900 text-lg sm:text-xl tracking-tight leading-tight">日本代購與購物清單</h1>
+                    <p class="text-[11px] text-slate-500 font-medium">Japan Shopping & Purchasing Assistant</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <button onclick="syncFromCloud(true)" title="立即從雲端同步" class="px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate text-blue-500"></i>
+                    <span>雲端同步</span>
+                </button>
+                <button onclick="openSyncSettingsModal()" title="設定 Google API 網址" class="px-2.5 py-1.5 text-xs sm:text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+                <button onclick="clearAllData()" class="px-3 py-1.5 text-xs sm:text-sm font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-trash-can"></i>
+                    <span class="hidden sm:inline">清空</span>
+                </button>
+                <button onclick="loadDemoData()" class="px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i>
+                    <span class="hidden sm:inline">載入範例</span>
+                </button>
+                <button onclick="openModal()" class="px-3.5 py-1.5 text-xs sm:text-sm font-bold text-white bg-jp-red hover:bg-red-700 rounded-xl shadow-md transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>新增商品</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Exchange Rate & Dashboard Banner -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
+            <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between space-y-2">
+                <div class="flex items-center justify-between text-xs text-slate-500 font-bold">
+                    <span class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-arrows-rotate text-emerald-500 animate-spin" id="rateSpinner" style="display:none;"></i>
+                        日幣即時匯率 (JPY → TWD)
+                    </span>
+                    <button onclick="fetchLiveExchangeRate(true)" title="重新抓取最新匯率" class="hover:text-jp-red transition text-slate-400">
+                        <i class="fa-solid fa-rotate-right text-xs"></i>
+                    </button>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm font-bold text-slate-600">1 JPY =</span>
+                    <input type="number" id="exchangeRate" value="0.215" step="0.0001" min="0.01" onchange="updateRate(this.value)" class="w-24 px-2 py-1 text-base font-black text-jp-red bg-red-50/50 border border-red-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 text-center">
+                    <span class="text-sm font-bold text-slate-600">TWD</span>
+                </div>
+                <p id="rateStatusText" class="text-[11px] text-slate-400 truncate font-medium">連線獲取即時匯率中...</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between text-xs text-slate-500 font-bold">
+                    <span>清單總預算</span>
+                    <span class="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full font-bold">預計全採購</span>
+                </div>
+                <div class="my-1">
+                    <div class="text-xl sm:text-2xl font-black text-slate-900" id="statTotalJPY">¥0</div>
+                    <div class="text-xs font-bold text-slate-500 mt-0.5">折合台幣 <span id="statTotalNTD" class="text-jp-red font-black">NT$ 0</span></div>
+                </div>
+                <div class="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                    <i class="fa-solid fa-piggy-bank"></i> 比台灣售價預估省 <span id="statSavings">NT$ 0</span>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-br from-slate-900 to-slate-800 p-4 rounded-2xl text-white shadow-md flex flex-col justify-between">
+                <div class="flex items-center justify-between text-xs text-slate-300 font-bold">
+                    <span><i class="fa-solid fa-cart-shopping text-emerald-400 mr-1"></i> 已勾選採購花費</span>
+                    <span id="progressText" class="text-[10px] bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-black">0 / 0 件</span>
+                </div>
+                <div class="my-1">
+                    <div class="text-2xl font-black text-emerald-400" id="statCheckedJPY">¥ 0</div>
+                    <div class="text-xs font-bold text-slate-300 mt-0.5">實際已花費 <span id="statCheckedNTD" class="text-amber-300 font-black">NT$ 0</span></div>
+                </div>
+                <div class="w-full bg-slate-700/80 rounded-full h-2 overflow-hidden">
+                    <div id="progressBar" class="bg-emerald-400 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Buyer Summary Panel -->
+        <section id="buyerSummarySection" class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 no-print hidden">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 class="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <i class="fa-solid fa-users text-jp-red"></i> 代購對象金額統計 (回國結算)
+                </h3>
+                <span class="text-[11px] text-slate-400 font-medium">包含委託總額與已購入金額</span>
+            </div>
+            <div id="buyerCardsContainer" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+        </section>
+
+        <!-- Controls, Filters, Search -->
+        <section class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm no-print">
+            <div class="flex flex-1 flex-wrap items-center gap-2">
+                <div class="relative flex-1 min-w-[180px]">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input type="text" id="searchInput" oninput="renderList()" placeholder="搜尋品牌、商品、代購對象或規格..." class="w-full pl-9 pr-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 font-medium">
+                </div>
+
+                <select id="categoryFilter" onchange="renderList()" class="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 text-slate-700 font-bold">
+                    <option value="all">全部分類</option>
+                    <option value="美妝/藥妝">💄 美妝/藥妝</option>
+                    <option value="服飾/鞋包">👟 服飾/鞋包</option>
+                    <option value="精品/皮件">👜 精品/皮件</option>
+                    <option value="3C/電子">📷 3C/電子</option>
+                    <option value="零食/伴手禮">🍡 零食/伴手禮</option>
+                    <option value="動漫/週邊">🧸 動漫/週邊</option>
+                    <option value="生活雜貨">🏠 生活雜貨</option>
+                    <option value="酒類/飲料">🍶 酒類/飲料</option>
+                </select>
+
+                <select id="statusFilter" onchange="renderList()" class="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 text-slate-700 font-bold">
+                    <option value="all">全部狀態</option>
+                    <option value="pending">⏳ 未購買</option>
+                    <option value="completed">✅ 已購買</option>
+                </select>
+            </div>
+
+            <div class="flex items-center space-x-2 justify-end">
+                <button onclick="exportCSV()" class="px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-file-csv text-emerald-600"></i> 匯出 CSV
+                </button>
+                <button onclick="window.print()" class="px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-print text-blue-600"></i> 列印清單
+                </button>
+            </div>
+        </section>
+
+        <!-- Brand Grouped Shopping Items -->
+        <section id="brandGroupsContainer" class="space-y-6"></section>
+
+        <!-- Empty State View -->
+        <div id="emptyState" class="hidden text-center py-16 px-4 bg-white rounded-3xl border border-dashed border-slate-300">
+            <div class="w-20 h-20 mx-auto mb-4 bg-red-50 text-jp-red rounded-3xl flex items-center justify-center text-3xl shadow-sm">
+                <i class="fa-solid fa-basket-shopping"></i>
+            </div>
+            <h3 class="text-lg font-black text-slate-800">代購購物清單目前是空的</h3>
+            <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto font-medium">點擊右上角「新增商品」選擇品項開始建立，或點擊「載入範例」觀察介面效果。</p>
+            <div class="mt-6 flex justify-center gap-3">
+                <button onclick="openModal()" class="px-5 py-2.5 text-xs font-bold text-white bg-jp-red hover:bg-red-700 rounded-xl transition shadow-md">
+                    + 新增第一個商品
+                </button>
+                <button onclick="loadDemoData()" class="px-4 py-2.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition">
+                    載入測試範例
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Form for Add / Edit Item -->
+    <div id="itemModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden no-print">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto border border-slate-100 transition-all">
+            <div class="sticky top-0 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-100 flex items-center justify-between z-10">
+                <h3 id="modalTitle" class="text-base font-black text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-cart-plus text-jp-red"></i> 新增代購商品
+                </h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="itemForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4">
+                <input type="hidden" id="itemId">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">商品照片預覽/上傳</label>
+                    <div class="space-y-3">
+                        <div id="imagePreviewContainer" class="w-full h-56 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 overflow-hidden relative">
+                            <img id="imagePreview" src="" class="w-full h-full object-contain hidden" alt="Preview">
+                            <div id="imagePlaceholder" class="text-center p-2">
+                                <i class="fa-solid fa-camera text-3xl mb-1 text-slate-400"></i>
+                                <span class="text-xs block font-medium">點擊選擇上傳圖片</span>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="file" id="imageInput" accept="image/*" onchange="handleImageUpload(event)" class="hidden">
+                            <button type="button" onclick="document.getElementById('imageInput').click()" class="px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition text-center border border-slate-200">
+                                <i class="fa-solid fa-upload mr-1"></i> 上傳照片 / 相機
+                            </button>
+                            <input type="text" id="imageUrl" placeholder="或貼上圖片網址..." oninput="handleImageUrlInput(this.value)" class="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400">
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">品牌 / 專櫃 (Brand) <span class="text-jp-red">*</span></label>
+                    <div class="grid grid-cols-1 gap-2">
+                        <select id="brandSelect" onchange="handleBrandSelectChange(this.value)" required class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 font-bold text-slate-800"></select>
+                        <input type="text" id="customBrandInput" placeholder="請輸入新品牌名稱..." class="hidden w-full px-3 py-2 text-sm bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold text-slate-800">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">大項分類 <span class="text-jp-red">*</span></label>
+                        <select id="categorySelect" onchange="updateItemNameOptions()" required class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 font-bold text-slate-800">
+                            <option value="美妝/藥妝">💄 美妝/藥妝</option>
+                            <option value="服飾/鞋包">👟 服飾/鞋包</option>
+                            <option value="精品/皮件">👜 精品/皮件</option>
+                            <option value="3C/電子">📷 3C/電子</option>
+                            <option value="零食/伴手禮">🍡 零食/伴手禮</option>
+                            <option value="動漫/週邊">🧸 動漫/週邊</option>
+                            <option value="生活雜貨">🏠 生活雜貨</option>
+                            <option value="酒類/飲料">🍶 酒類/飲料</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">選擇商品項目 <span class="text-jp-red">*</span></label>
+                        <select id="itemNameSelect" onchange="handleItemNameSelectChange(this.value)" required class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 font-bold text-slate-800"></select>
+                    </div>
+                </div>
+
+                <div id="customItemNameContainer" class="hidden">
+                    <label class="block text-xs font-bold text-amber-700 mb-1">手動填寫商品名稱</label>
+                    <input type="text" id="customItemNameInput" placeholder="例如: 期間限定聯名水壺" class="w-full px-3 py-2 text-sm bg-amber-50/50 border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold">
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-jp-red mb-1">尺寸 / 顏色 / 規格標籤 <span class="text-jp-red">*</span></label>
+                        <input type="text" id="specInput" placeholder="例如: 黑色 / Size L / 50ml" required class="w-full px-3.5 py-2.5 text-base bg-amber-50/30 border-2 border-amber-400/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-black text-slate-900">
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="col-span-2">
+                            <label class="block text-xs font-bold text-slate-700 mb-1">代購委託人 (幫誰買)</label>
+                            <input type="text" id="buyerInput" placeholder="例如: 自用、小明" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 font-bold text-slate-800">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">數量</label>
+                            <input type="number" id="qtyInput" value="1" min="1" required class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 font-bold text-center">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-red-50/60 rounded-2xl border border-red-100 space-y-3">
+                    <div class="flex items-center justify-between text-xs font-bold text-jp-red">
+                        <span><i class="fa-solid fa-calculator mr-1"></i> 價格與雙向換算 (匯率: <span id="modalCurrentRate">0.215</span>)</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">日幣單價 (JPY)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">¥</span>
+                                <input type="number" id="jpyInput" min="0" placeholder="0" oninput="convertJPYtoNTD()" class="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 font-extrabold text-slate-900">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">台灣參考售價 (NTD)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">NT$</span>
+                                <input type="number" id="ntdInput" min="0" placeholder="0" oninput="convertNTDtoJPY()" class="w-full pl-10 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 font-extrabold text-slate-900">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">備註</label>
+                    <textarea id="noteInput" rows="2" placeholder="注意事項..." class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-400 font-medium"></textarea>
+                </div>
+
+                <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">取消</button>
+                    <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-jp-red hover:bg-red-700 rounded-xl shadow-md transition">儲存商品</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lightbox Modal for Full Size Photo Viewing -->
+    <div id="lightboxModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden no-print" onclick="closeLightbox()">
+        <div class="relative max-w-4xl w-full h-full max-h-[90vh] flex flex-col items-center justify-center" onclick="event.stopPropagation()">
+            <button onclick="closeLightbox()" class="absolute -top-3 -right-3 z-10 w-10 h-10 bg-white/20 hover:bg-white/40 text-white rounded-full flex items-center justify-center backdrop-blur-md transition shadow-lg">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <div class="w-full h-full flex items-center justify-center overflow-hidden rounded-2xl bg-black/40 border border-white/10 p-2">
+                <img id="lightboxImage" src="" class="max-w-full max-h-full object-contain rounded-xl shadow-2xl transition-transform duration-200">
+            </div>
+            <p class="text-xs text-slate-400 mt-2 font-medium">點擊任意處或右上角 ✕ 關閉大圖預覽</p>
+        </div>
+    </div>
+
+    <!-- Cloud Sync Settings Modal -->
+    <div id="syncSettingsModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden no-print">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-cloud text-blue-500"></i> Google 雲端同步設定
+                </h3>
+                <button onclick="closeSyncSettingsModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 transition"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-3">
+                <label class="block text-xs font-bold text-slate-700 mb-1">Google Apps Script API 網址</label>
+                <input type="text" id="gasUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono">
+            </div>
+            <div class="flex items-center justify-end space-x-2 pt-2">
+                <button onclick="closeSyncSettingsModal()" class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">取消</button>
+                <button onclick="saveSyncSettings()" class="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition">儲存設定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 bg-slate-900/90 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center space-x-3 transition-all duration-300 translate-y-20 opacity-0 pointer-events-none backdrop-blur-md">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="toastMessage" class="text-xs font-bold">通知訊息</span>
+    </div>
+
+    <script>
+        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzlMXmkTyuM-G2jKq_PbuytbFHBQUuum2a6nU2-VXnZRp2JkNvxoyzBT4f_KWS7zzf2Fw/exec';
+        let gasApiUrl = DEFAULT_GAS_URL;
+
+        const defaultBrands = ['UNIQLO', 'GU', '無印良品 MUJI', 'PORTER JAPAN', 'BAO BAO ISSEY MIYAKE', 'CHANEL', 'LOEWE', 'SHISEIDO 資生堂', 'SK-II', 'Snidel', 'Bic Camera 3C', 'Yodobashi', '松本清 Matsumoto Kiyoshi', 'DON DON DONKI 唐吉訶德', '迪士尼商店 Disney Store', '三麗鷗 Sanrio', '星巴克 Starbucks Japan'];
+        const presetCategoryItems = {
+            '美妝/藥妝': ['合利他命 EX PLUS 強效錠', 'EVE QUICK 止痛藥', 'SK-II 青春露', '資生堂 安耐晒金鑽防曬露', 'ROIHI-TSUBOKO 穴位貼布', '大正百保能感冒顆粒', '參天 Santen FX 眼藥水', 'DHC 護唇膏 / 維他命', '其他 (手動填寫)'],
+            '服飾/鞋包': ['HEATTECH 發熱衣', '超極輕羽絨外套', '印花 UT T恤', '撥水加工帆布休閒鞋', 'PORTER 經典斜背包', 'BAO BAO 菱格托特包', '休閒連帽外套', '其他 (手動填寫)'],
+            '精品/皮件': ['經典拉鍊長夾 / 短夾', '皮革單肩斜包', '經典名片盒 / 卡套', '精緻造型手鍊 / 飾品', '其他 (手動填寫)'],
+            '3C/電子': ['Panasonic 奈米水離子吹風機', 'Dyson 造型吹風組', 'Sony 無線降噪耳機', 'Nintendo Switch 遊戲片', '富士膠片 Instax 拍立得相機', '其他 (手動填寫)'],
+            '零食/伴手禮': ['白色戀人 巧克力餅乾', '東京香蕉 TOKYO BANANA', 'ROYCE\' 生巧克力', '薯條三兄弟', '一蘭拉麵 泡麵/外帶包', 'Calbee 卡樂比洋芋片', '其他 (手動填寫)'],
+            '動漫/週邊': ['吉伊卡哇 Chiikawa 絨毛公仔', '寶可夢中心 限定玩偶', '精選盒玩 / 扭蛋', '限定壓克力立牌', '其他 (手動填寫)'],
+            '生活雜貨': ['攜帶式超音波水氧機', '象印 ZOJIRUSHI 保溫瓶', '虎牌 TIGER 不鏽鋼便當盒', '日系膠帶 / 文具組', '其他 (手動填寫)'],
+            '酒類/飲料': ['獺祭 磨き二割三分 純米大吟釀', '山崎 / 白州 威士忌', 'SUNTORY ほろよい 啤酒', '其他 (手動填寫)']
+        };
+
+        let shoppingItems = [];
+        let customBrandList = [];
+        let currentExchangeRate = 0.215;
+        let currentImageBase64 = '';
+
+        window.onload = function() {
+            loadFromLocalStorage();
+            fetchLiveExchangeRate();
+            if (gasApiUrl && gasApiUrl.trim().startsWith('http')) {
+                syncFromCloud(false);
+            } else {
+                renderList();
+            }
+            setInterval(() => {
+                if (gasApiUrl && gasApiUrl.trim().startsWith('http')) {
+                    syncFromCloud(false);
+                }
+            }, 30000);
+        };
+
+        async function fetchLiveExchangeRate(manual = false) {
+            const spinner = document.getElementById('rateSpinner');
+            const statusText = document.getElementById('rateStatusText');
+            if (spinner) spinner.style.display = 'inline-block';
+            try {
+                const response = await fetch('https://open.er-api.com/v6/latest/JPY');
+                const data = await response.json();
+                if (data && data.rates && data.rates.TWD) {
+                    currentExchangeRate = parseFloat(data.rates.TWD.toFixed(4));
+                    document.getElementById('exchangeRate').value = currentExchangeRate;
+                    saveToLocalStorage();
+                    renderList();
+                    statusText.innerText = '匯率更新時間: ' + new Date().toLocaleTimeString();
+                    statusText.className = 'text-[11px] text-emerald-600 font-medium truncate';
+                    if (manual) showToast('即時匯率已成功更新！');
+                }
+            } catch (err) {
+                statusText.innerText = '使用離線預設匯率';
+                if (manual) showToast('無法連線最新匯率', 'info');
+            } finally {
+                if (spinner) spinner.style.display = 'none';
+            }
+        }
+
+        function loadFromLocalStorage() {
+            const savedItems = localStorage.getItem('jp_shopping_items');
+            const savedBrands = localStorage.getItem('jp_custom_brands');
+            const savedRate = localStorage.getItem('jp_exchange_rate');
+            const savedGasUrl = localStorage.getItem('jp_gas_api_url');
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const apiParam = urlParams.get('api') || urlParams.get('gas');
+
+            if (apiParam) {
+                gasApiUrl = apiParam.trim();
+                localStorage.setItem('jp_gas_api_url', gasApiUrl);
+            } else if (savedGasUrl) {
+                gasApiUrl = savedGasUrl;
+            } else {
+                gasApiUrl = DEFAULT_GAS_URL;
+            }
+
+            if (savedItems) {
+                try { shoppingItems = JSON.parse(savedItems); } catch(e) { shoppingItems = []; }
+            }
+            if (savedBrands) {
+                try { customBrandList = JSON.parse(savedBrands); } catch(e) { customBrandList = []; }
+            }
+            if (savedRate) {
+                currentExchangeRate = parseFloat(savedRate) || 0.215;
+            }
+            document.getElementById('exchangeRate').value = currentExchangeRate;
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('jp_shopping_items', JSON.stringify(shoppingItems));
+            localStorage.setItem('jp_custom_brands', JSON.stringify(customBrandList));
+            localStorage.setItem('jp_exchange_rate', currentExchangeRate.toString());
+        }
+
+        async function syncFromCloud(showNotification = true) {
+            if (!gasApiUrl || !gasApiUrl.trim().startsWith('http')) return;
+            if (showNotification) showToast('正在從雲端讀取最新清單...', 'info');
+
+            try {
+                const response = await fetch(gasApiUrl, { method: 'GET', redirect: 'follow' });
+                const result = await response.json();
+
+                if (result && result.status === 'success' && Array.isArray(result.data)) {
+                    shoppingItems = result.data.map(item => ({
+                        ...item,
+                        id: String(item.id || ('item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)))
+                    }));
+                    saveToLocalStorage();
+                    renderList();
+                    if (showNotification) showToast('已成功從雲端同步最新資料！');
+                }
+            } catch (err) {
+                console.error('Cloud load error:', err);
+                renderList();
+                if (showNotification) showToast('雲端同步失敗，已載入本機快取', 'info');
+            }
+        }
+
+        async function syncToCloud(showNotification = true) {
+            if (!gasApiUrl || !gasApiUrl.trim().startsWith('http')) return;
+            if (showNotification) showToast('正在同步更新至雲端...', 'info');
+
+            try {
+                await fetch(gasApiUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: shoppingItems })
+                });
+                if (showNotification) showToast('已同步資料至 Google 雲端！');
+            } catch (err) {
+                console.error('Cloud save error:', err);
+                if (showNotification) showToast('同步至雲端失敗', 'info');
+            }
+        }
+
+        function openSyncSettingsModal() {
+            document.getElementById('gasUrlInput').value = gasApiUrl;
+            document.getElementById('syncSettingsModal').classList.remove('hidden');
+        }
+        function closeSyncSettingsModal() {
+            document.getElementById('syncSettingsModal').classList.add('hidden');
+        }
+        function saveSyncSettings() {
+            gasApiUrl = document.getElementById('gasUrlInput').value.trim();
+            localStorage.setItem('jp_gas_api_url', gasApiUrl);
+            closeSyncSettingsModal();
+            syncFromCloud(true);
+        }
+
+        function updateRate(newRate) {
+            currentExchangeRate = parseFloat(newRate) || 0.215;
+            saveToLocalStorage();
+            renderList();
+        }
+
+        function loadDemoData() {
+            shoppingItems = [
+                { id: 'item_1', brand: '無印良品 MUJI', category: '生活雜貨', name: '攜帶式超音波水氧機', spec: '白色 / 附專用袋', buyer: '同事 A', qty: 1, jpy: 3990, ntd: 1190, completed: false, image: 'https://images.unsplash.com/photo-1546554137-f86b9593a222?auto=format&fit=crop&w=600&q=80' },
+                { id: 'item_2', brand: 'UNIQLO', category: '服飾/鞋包', name: '超極輕羽絨外套', spec: '藏青色 / Size L', buyer: '爸爸', qty: 1, jpy: 6990, ntd: 2490, completed: true, image: 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=600&q=80' }
+            ];
+            saveToLocalStorage();
+            renderList();
+            syncToCloud(false);
+            showToast('已載入範例資料！');
+        }
+
+        function clearAllData() {
+            if (shoppingItems.length === 0) return;
+            if (confirm('確定要清空所有商品資料嗎？')) {
+                shoppingItems = [];
+                saveToLocalStorage();
+                renderList();
+                syncToCloud(false);
+                showToast('已清空所有資料', 'info');
+            }
+        }
+
+        function updateBrandDropdownOptions(selectedBrand = '') {
+            const select = document.getElementById('brandSelect');
+            select.innerHTML = '';
+            const allBrands = Array.from(new Set([...defaultBrands, ...customBrandList]));
+            allBrands.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b; opt.textContent = b;
+                if (b === selectedBrand) opt.selected = true;
+                select.appendChild(opt);
+            });
+            const customOpt = document.createElement('option');
+            customOpt.value = 'NEW_CUSTOM_BRAND'; customOpt.textContent = '➕ 新增自訂品牌...';
+            if (selectedBrand === 'NEW_CUSTOM_BRAND') customOpt.selected = true;
+            select.appendChild(customOpt);
+            handleBrandSelectChange(select.value);
+        }
+
+        function handleBrandSelectChange(val) {
+            const customInput = document.getElementById('customBrandInput');
+            if (val === 'NEW_CUSTOM_BRAND') {
+                customInput.classList.remove('hidden'); customInput.required = true; customInput.focus();
+            } else {
+                customInput.classList.add('hidden'); customInput.required = false;
+            }
+        }
+
+        function updateItemNameOptions(selectedName = '') {
+            const cat = document.getElementById('categorySelect').value;
+            const nameSelect = document.getElementById('itemNameSelect');
+            nameSelect.innerHTML = '';
+            const items = presetCategoryItems[cat] || ['其他 (手動填寫)'];
+            items.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item; opt.textContent = item;
+                if (item === selectedName) opt.selected = true;
+                nameSelect.appendChild(opt);
+            });
+            handleItemNameSelectChange(nameSelect.value);
+        }
+
+        function handleItemNameSelectChange(val) {
+            const container = document.getElementById('customItemNameContainer');
+            const customInput = document.getElementById('customItemNameInput');
+            if (val === '其他 (手動填寫)') {
+                container.classList.remove('hidden'); customInput.required = true;
+            } else {
+                container.classList.add('hidden'); customInput.required = false;
+            }
+        }
+
+        function convertNTDtoJPY() {
+            const ntd = parseFloat(document.getElementById('ntdInput').value) || 0;
+            if (ntd > 0 && currentExchangeRate > 0) {
+                document.getElementById('jpyInput').value = Math.round(ntd / currentExchangeRate);
+            }
+        }
+
+        function convertJPYtoNTD() {
+            const jpy = parseFloat(document.getElementById('jpyInput').value) || 0;
+            if (jpy > 0 && currentExchangeRate > 0) {
+                document.getElementById('ntdInput').value = Math.round(jpy * currentExchangeRate);
+            }
+        }
+
+        function renderList() {
+            const container = document.getElementById('brandGroupsContainer');
+            const emptyState = document.getElementById('emptyState');
+            const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+
+            let filtered = shoppingItems.filter(item => {
+                const matchSearch = (item.brand && item.brand.toLowerCase().includes(searchQuery)) ||
+                                    (item.name && item.name.toLowerCase().includes(searchQuery)) ||
+                                    (item.buyer && item.buyer.toLowerCase().includes(searchQuery)) ||
+                                    (item.spec && item.spec.toLowerCase().includes(searchQuery));
+                let matchCat = (categoryFilter === 'all') || (item.category === categoryFilter);
+                let matchStatus = (statusFilter === 'all') || 
+                                  (statusFilter === 'pending' && !item.completed) || 
+                                  (statusFilter === 'completed' && item.completed);
+                return matchSearch && matchCat && matchStatus;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                updateStatistics();
+                renderBuyerSummary();
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            const brandGroups = {};
+            filtered.forEach(item => {
+                const brandKey = (item.brand && item.brand.trim()) ? item.brand.trim() : '未分類品牌';
+                if (!brandGroups[brandKey]) brandGroups[brandKey] = [];
+                brandGroups[brandKey].push(item);
+            });
+
+            let html = '';
+            Object.keys(brandGroups).forEach(brand => {
+                const items = brandGroups[brand];
+                const brandTotalJPY = items.reduce((sum, i) => sum + ((i.jpy || 0) * (i.qty || 1)), 0);
+                const brandTotalNTD = Math.round(brandTotalJPY * currentExchangeRate);
+                const brandCompletedCount = items.filter(i => i.completed).length;
+
+                html += `
+                <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200 flex justify-between items-center">
+                        <h2 class="text-base font-black text-slate-900">${escapeHtml(brand)} (${brandCompletedCount}/${items.length})</h2>
+                        <div class="text-sm font-black text-slate-900">¥${brandTotalJPY.toLocaleString()} <span class="text-xs text-jp-red">(NT$ ${brandTotalNTD.toLocaleString()})</span></div>
+                    </div>
+                    <div class="divide-y divide-slate-100">
+                        ${items.map(item => renderItemRow(item)).join('')}
+                    </div>
+                </div>`;
+            });
+
+            container.innerHTML = html;
+            updateStatistics();
+            renderBuyerSummary();
+        }
+
+        function renderItemRow(item) {
+            const itemJPY = item.jpy || 0;
+            const itemQty = item.qty || 1;
+            const totalItemNTD = Math.round(itemJPY * currentExchangeRate) * itemQty;
+            const fallbackImg = 'https://placehold.co/300x300/f8fafc/94a3b8?text=No+Photo';
+            const displayImg = item.image || fallbackImg;
+            const safeId = String(item.id);
+
+            return `
+            <div class="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-slate-50 transition ${item.completed ? 'opacity-60 bg-slate-50/40' : ''}">
+                <div class="flex items-start space-x-3.5 flex-1 min-w-0">
+                    <button onclick="toggleComplete('${safeId}')" class="mt-1.5 w-7 h-7 rounded-xl border-2 shrink-0 ${item.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 bg-white'} flex items-center justify-center transition shadow-xs">
+                        ${item.completed ? '<i class="fa-solid fa-check text-sm font-black"></i>' : ''}
+                    </button>
+
+                    <div class="w-28 h-28 rounded-2xl overflow-hidden shrink-0 border border-slate-200 relative group cursor-pointer shadow-xs bg-slate-100" onclick="openLightbox('${displayImg}')" title="點擊檢視大圖">
+                        <img src="${displayImg}" onerror="this.src='${fallbackImg}'" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                        <div class="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                            <i class="fa-solid fa-magnifying-glass-plus"></i> 大圖
+                        </div>
+                    </div>
+
+                    <div class="min-w-0 flex-1 space-y-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            ${item.category ? `<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-red-50 text-jp-red">${escapeHtml(item.category)}</span>` : ''}
+                            ${item.buyer ? `<span class="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700">${escapeHtml(item.buyer)}</span>` : ''}
+                            <h3 class="text-base font-black text-slate-900 ${item.completed ? 'line-through text-slate-400' : ''}">${escapeHtml(item.name)}</h3>
+                        </div>
+                        <div class="text-sm font-black text-amber-600">規格: ${escapeHtml(item.spec)} (x${itemQty})</div>
+                        ${item.note ? `<p class="text-xs text-slate-500">備註: ${escapeHtml(item.note)}</p>` : ''}
+                    </div>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto space-x-4">
+                    <div class="text-left sm:text-right">
+                        <div class="text-base font-black text-slate-900">¥${itemJPY.toLocaleString()}</div>
+                        <div class="text-sm font-black text-jp-red">NT$ ${totalItemNTD.toLocaleString()}</div>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <button onclick="editItem('${safeId}')" class="w-8 h-8 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center"><i class="fa-solid fa-pen text-xs"></i></button>
+                        <button onclick="deleteItem('${safeId}')" class="w-8 h-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        function openLightbox(imgSrc) {
+            const modal = document.getElementById('lightboxModal');
+            const img = document.getElementById('lightboxImage');
+            img.src = imgSrc;
+            modal.classList.remove('hidden');
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightboxModal').classList.add('hidden');
+        }
+
+        function updateStatistics() {
+            const totalCount = shoppingItems.length;
+            const completedItems = shoppingItems.filter(i => i.completed);
+            const totalJPY = shoppingItems.reduce((sum, i) => sum + ((i.jpy || 0) * (i.qty || 1)), 0);
+            const totalNTD = Math.round(totalJPY * currentExchangeRate);
+            const checkedJPY = completedItems.reduce((sum, i) => sum + ((i.jpy || 0) * (i.qty || 1)), 0);
+            const checkedNTD = Math.round(checkedJPY * currentExchangeRate);
+
+            document.getElementById('statTotalJPY').innerText = '¥ ' + totalJPY.toLocaleString();
+            document.getElementById('statTotalNTD').innerText = 'NT$ ' + totalNTD.toLocaleString();
+            document.getElementById('statCheckedJPY').innerText = '¥ ' + checkedJPY.toLocaleString();
+            document.getElementById('statCheckedNTD').innerText = 'NT$ ' + checkedNTD.toLocaleString();
+            document.getElementById('progressText').innerText = `${completedItems.length} / ${totalCount} 件`;
+            document.getElementById('progressBar').style.width = `${totalCount === 0 ? 0 : Math.round((completedItems.length/totalCount)*100)}%`;
+        }
+
+        function renderBuyerSummary() {
+            const section = document.getElementById('buyerSummarySection');
+            const container = document.getElementById('buyerCardsContainer');
+            if (shoppingItems.length === 0) { section.classList.add('hidden'); return; }
+
+            const buyerMap = {};
+            shoppingItems.forEach(item => {
+                const buyerName = (item.buyer && item.buyer.trim()) ? item.buyer.trim() : '自用';
+                if (!buyerMap[buyerName]) buyerMap[buyerName] = { totalJPY: 0, count: 0 };
+                buyerMap[buyerName].totalJPY += (item.jpy || 0) * (item.qty || 1);
+                buyerMap[buyerName].count += 1;
+            });
+
+            let html = '';
+            Object.keys(buyerMap).forEach(buyer => {
+                const data = buyerMap[buyer];
+                const totalNTD = Math.round(data.totalJPY * currentExchangeRate);
+                html += `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200"><div class="text-xs font-black text-slate-800">${escapeHtml(buyer)} (${data.count}件)</div><div class="text-sm font-black text-slate-900">¥${data.totalJPY.toLocaleString()} <span class="text-xs text-jp-red">NT$ ${totalNTD.toLocaleString()}</span></div></div>`;
+            });
+            container.innerHTML = html;
+            section.classList.remove('hidden');
+        }
+
+        function toggleComplete(id) {
+            const item = shoppingItems.find(i => String(i.id) === String(id));
+            if (item) {
+                item.completed = !item.completed;
+                saveToLocalStorage();
+                renderList();
+                syncToCloud(false);
+            }
+        }
+
+        function deleteItem(id) {
+            if (confirm('確定要刪除這個商品嗎？')) {
+                shoppingItems = shoppingItems.filter(i => String(i.id) !== String(id));
+                saveToLocalStorage();
+                renderList();
+                syncToCloud(false);
+                showToast('已刪除商品', 'info');
+            }
+        }
+
+        function openModal(editId = null) {
+            const modal = document.getElementById('itemModal');
+            document.getElementById('itemForm').reset();
+            currentImageBase64 = '';
+            document.getElementById('imagePreview').classList.add('hidden');
+            document.getElementById('imagePlaceholder').classList.remove('hidden');
+
+            if (editId) {
+                const item = shoppingItems.find(i => String(i.id) === String(editId));
+                if (item) {
+                    document.getElementById('modalTitle').innerHTML = '<i class="fa-solid fa-pen-to-square text-jp-red"></i> 編輯商品';
+                    document.getElementById('itemId').value = String(item.id);
+                    updateBrandDropdownOptions(item.brand);
+                    document.getElementById('categorySelect').value = item.category || '美妝/藥妝';
+                    updateItemNameOptions(item.name);
+                    
+                    if (!presetCategoryItems[item.category || '美妝/藥妝'].includes(item.name)) {
+                        document.getElementById('itemNameSelect').value = '其他 (手動填寫)';
+                        handleItemNameSelectChange('其他 (手動填寫)');
+                        document.getElementById('customItemNameInput').value = item.name;
+                    }
+
+                    document.getElementById('specInput').value = item.spec || '';
+                    document.getElementById('buyerInput').value = item.buyer || '';
+                    document.getElementById('qtyInput').value = item.qty || 1;
+                    document.getElementById('jpyInput').value = item.jpy || '';
+                    document.getElementById('ntdInput').value = item.ntd || '';
+                    document.getElementById('noteInput').value = item.note || '';
+                    if (item.image) {
+                        currentImageBase64 = item.image;
+                        document.getElementById('imagePreview').src = item.image;
+                        document.getElementById('imagePreview').classList.remove('hidden');
+                        document.getElementById('imagePlaceholder').classList.add('hidden');
+                    }
+                }
+            } else {
+                document.getElementById('modalTitle').innerHTML = '<i class="fa-solid fa-cart-plus text-jp-red"></i> 新增商品';
+                document.getElementById('itemId').value = '';
+                updateBrandDropdownOptions();
+                updateItemNameOptions();
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() { document.getElementById('itemModal').classList.add('hidden'); }
+        function editItem(id) { openModal(id); }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('itemId').value;
+            let brand = document.getElementById('brandSelect').value;
+            if (brand === 'NEW_CUSTOM_BRAND') {
+                brand = document.getElementById('customBrandInput').value.trim();
+                if (brand && !customBrandList.includes(brand)) customBrandList.push(brand);
+            }
+            const category = document.getElementById('categorySelect').value;
+            let name = document.getElementById('itemNameSelect').value;
+            if (name === '其他 (手動填寫)') name = document.getElementById('customItemNameInput').value.trim();
+
+            const spec = document.getElementById('specInput').value.trim();
+            const buyer = document.getElementById('buyerInput').value.trim();
+            const qty = parseInt(document.getElementById('qtyInput').value) || 1;
+            const jpy = parseFloat(document.getElementById('jpyInput').value) || 0;
+            const ntd = parseFloat(document.getElementById('ntdInput').value) || 0;
+            const note = document.getElementById('noteInput').value.trim();
+
+            if (!brand || !name || !spec) { alert('請填寫完整資訊！'); return; }
+
+            if (id) {
+                const index = shoppingItems.findIndex(i => String(i.id) === String(id));
+                if (index !== -1) {
+                    shoppingItems[index] = { ...shoppingItems[index], brand, name, category, spec, buyer, qty, jpy, ntd, note, image: currentImageBase64 || shoppingItems[index].image };
+                }
+            } else {
+                const newId = 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                shoppingItems.unshift({ id: newId, brand, name, category, spec, buyer, qty, jpy, ntd, note, completed: false, image: currentImageBase64 });
+            }
+
+            saveToLocalStorage();
+            renderList();
+            closeModal();
+            syncToCloud(false);
+            showToast('儲存成功！');
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height, max = 800;
+                    if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+                    else if (h >= w && h > max) { w = Math.round(w * max / h); h = max; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    currentImageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+                    const preview = document.getElementById('imagePreview');
+                    preview.src = currentImageBase64;
+                    preview.classList.remove('hidden');
+                    document.getElementById('imagePlaceholder').classList.add('hidden');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleImageUrlInput(url) {
+            if (url) {
+                currentImageBase64 = url;
+                const preview = document.getElementById('imagePreview');
+                preview.src = url;
+                preview.classList.remove('hidden');
+                document.getElementById('imagePlaceholder').classList.add('hidden');
+            }
+        }
+
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none'), 2500);
+        }
+
+        function exportCSV() {
+            if (shoppingItems.length === 0) { alert('沒有資料'); return; }
+            let csv = "\uFEFF品牌,分類,代購對象,商品名稱,規格,數量,日幣,台幣,狀態,備註\n";
+            shoppingItems.forEach(i => {
+                csv += `"${i.brand}","${i.category}","${i.buyer || '自用'}","${i.name}","${i.spec}",${i.qty},${i.jpy},${Math.round(i.jpy * currentExchangeRate)},"${i.completed ? '已買' : '未買'}","${i.note || ''}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `日本代購清單_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
